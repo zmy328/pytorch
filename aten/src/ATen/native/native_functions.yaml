@@ -4773,6 +4773,16 @@
 - func: nonzero_numpy(Tensor self) -> Tensor[]
   variants: method, function
 
+- func: index_select_new(Tensor self, int dim, Tensor index) -> Tensor
+  variants: method, function
+  dispatch:
+    CPU: index_select_cpu_new_
+
+- func: gather_new(Tensor self, int dim, Tensor index, *, bool sparse_grad=False) -> Tensor
+  variants: method, function
+  dispatch:
+    CPU: gather_cpu_new_
+
 - func: gather.out(Tensor self, int dim, Tensor index, *, bool sparse_grad=False, Tensor(a!) out) -> Tensor(a!)
   dispatch:
     CPU: gather_out_cpu
