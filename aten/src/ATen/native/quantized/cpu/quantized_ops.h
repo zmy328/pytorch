@@ -20,6 +20,7 @@ using qelu_fn = void(*)(
     const at::Tensor& /*qx*/,
     Scalar /*alpha*/,
     at::Tensor& /*qy*/);
+using qgelu_fn = void (*)(const at::Tensor& /*qx*/, at::Tensor& /*qy*/);
 using qbinary_fn =
     void (*)(Tensor& /*out*/, const Tensor& /*self*/, const Tensor& /*other*/);
 using qadd_scalar_fn =
@@ -134,6 +135,7 @@ DECLARE_DISPATCH(qadd_scalar_fn, qadd_scalar_stub);
 DECLARE_DISPATCH(qadd_scalar_fn, qadd_scalar_relu_stub);
 DECLARE_DISPATCH(qhardswish_fn, qhardswish_stub);
 DECLARE_DISPATCH(qelu_fn, qelu_stub);
+DECLARE_DISPATCH(qgelu_fn, qgelu_stub);
 DECLARE_DISPATCH(qmaxpool_2d_fn, qmaxpool_2d_nhwc_stub);
 DECLARE_DISPATCH(qadaptive_avg_pool2d_fn, qadaptive_avg_pool2d_nhwc_stub);
 DECLARE_DISPATCH(qavg_pool2d_fn, qavg_pool2d_nhwc_stub);

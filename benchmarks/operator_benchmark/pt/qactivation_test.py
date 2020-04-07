@@ -56,6 +56,7 @@ qactivation_ops = op_bench.op_list(
         ('functional.leaky_relu', nnq.functional.leaky_relu),
         ('functional.sigmoid', torch.nn.functional.sigmoid),
         ('functional.tanh', torch.nn.functional.tanh),
+        ('functional.gelu', nnq.functional.gelu),
     ),
     attr_names=('op_name', 'op_func'),
 )
