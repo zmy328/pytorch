@@ -374,8 +374,8 @@ static auto registry = torch::RegisterOperators()
     .aliasAnalysis(AliasAnalysisKind::FROM_SCHEMA)
     .impl_unboxedOnlyKernel<decltype(VariableType::copy_), &VariableType::copy_>(DispatchKey::Autograd))
   .op(torch::RegisterOperators::options()
-    .schema("aten::backward(Tensor self, Tensor? gradient=None, bool keep_graph=False, bool create_graph=False) -> ()")
-    .aliasAnalysis(AliasAnalysisKind::FROM_SCHEMA)
+    .schema("aten::backward(Tensor self, Tensor? gradient=None, bool? retain_graph=None, bool create_graph=False) -> ()")
+    .aliasAnalysis(AliasAnalysisKind::CONSERVATIVE)
     // For backward(), we need the catch-all kernel (see comment above), but we also need the Autograd backend
     // kernel, because when called with a VariableTensorId tensor, it goes through the variable fallback kernel,
     // which calls callBoxed(), which doesn't support optional tensor arguments yet and backward() has an optional
