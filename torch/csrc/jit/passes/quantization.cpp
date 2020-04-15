@@ -50,6 +50,7 @@ struct PatternsAndModules {
 std::vector<std::string> _quantizable_call_funcs = {
     "conv2d",
     "linear",
+    "batch_norm",
 };
 
 std::vector<std::string> _quantizable_aten_funcs = {
@@ -123,7 +124,7 @@ using CallFuncArgs = std::vector<FuncArg>;
 // For each operator in this list observers are inserted for the input based
 // on the index specified.
 AtenFuncArgs _aten_func_args = {};
-CallFuncArgs _call_func_args = {};
+CallFuncArgs _call_func_args = {{"batch_norm", 1}};
 
 void fillQConfigMap(
     const Module& module,
