@@ -1650,6 +1650,83 @@ class TestQuantizedOps(TestCase):
             self.assertTrue(pct_diff < 1e-6)
             self.assertTrue(pct_diff_off_by_one < 0.01)
 
+    @given(shapes=hu.array_shapes(3, 5, 2, 32),
+           torch_type=st.sampled_from((torch.qint8, torch.quint8, torch.qint32)),
+           X_rand_scale=st.floats(0.01, 1e3),
+           Y_scale=st.floats(0.2, 2.6),
+           Y_zero_point=st.integers(0, 5))
+    def test_instance_norm(self, shapes, torch_type, X_rand_scale,
+                           Y_scale, Y_zero_point):
+        if "fbgemm" not in torch.backends.quantized.supported_engines:
+            return
+
+        with override_quantized_engine("fbgemm"):
+            # In the FP kernel, mean and variance are calculated in floating point.
+            # In the quantized kernel, they are calculated in integer arithmetic.
+            # Because of this, the numerics do not always match exactly which is
+            # expected and acceptable. We do the following to whitelist this failure
+            # in this test:
+            # 1. do not use Hypothesis to generate the input tensor.  Hypothesis
+            #    favors homogeneous inputs in its search strategies which isn't
+            #    representative of the inputs we care about, and tends to maximize
+            #    this particular numerics difference.
+            # 2. whitelist a small % of off by Y_scale errors.  Even when the
+            #    variance of the input is high, there can be off by one errors
+            #    in the result if the input value happens to fall exactly on
+            #    the bin boundary of the output scale.
+            #
+            # If we want the numerics to match we could switch to calculating
+            # mean+var in floating point in the future, at the cost of speed.
+            X, X_scale, X_zero_point = \
+                _get_random_tensor_and_q_params(shapes, X_rand_scale, torch_type)
+
+            num_channels = shapes[1]
+            weight = torch.rand(num_channels).float() * 0.5
+            bias = torch.rand(num_channels).float()
+            for i in range(num_channels):
+                weight[i] *= i
+                bias[i] *= i
+            eps = 0.001
+
+            qX = torch.quantize_per_tensor(X, X_scale, X_zero_point, torch_type)
+            dqX = qX.dequantize()
+
+            # Enforce non-homogeneous inputs
+            batches = shapes[0]
+            for batch_idx in range(batches):
+                for ch_idx in range(num_channels):
+                    ch_vals = dqX[batch_idx][ch_idx]
+                    assume(
+                        float(torch.unique(ch_vals).shape[0]) / ch_vals.numel() > 0.01
+                        or group_vals.numel() < 5)
+
+            qY = torch.ops.quantized.instance_norm(qX, weight, bias, eps, Y_scale, Y_zero_point)
+
+            dqY_hat = F.instance_norm(dqX, weight=weight, bias=bias, eps=eps)
+            qY_hat = torch.quantize_per_tensor(dqY_hat, Y_scale, Y_zero_point, torch_type)
+            note("X\n{}\nqX\n{}\ndqX\n{}\n".format(X, qX, dqX))
+
+            # Due to the numerics difference mentioned above between calculating
+            # the variance in float vs int, the results can still be slightly
+            # different.
+            dqY = qY.dequantize()
+            dqY_hat = qY_hat.dequantize()
+            diff = dqY - dqY_hat
+
+            # off-by-one errors are magnitude of Y_scale
+            num_diff = torch.sum(diff > Y_scale * 1.0001)
+            pct_diff = float(num_diff) / (diff.numel() + 1e-5)
+            num_diff_off_by_one = torch.sum((diff > 0) * (diff <= Y_scale))
+            pct_diff_off_by_one = float(num_diff_off_by_one) / (diff.numel() + 1e-5)
+
+            note("LayerNorm failed:\n {} input vs\n {} actual vs \n{} expected"
+                 .format(X, qY, qY_hat))
+            note("Pct diff: {}".format(pct_diff))
+            note("Pct diff off by one: {}".format(pct_diff_off_by_one))
+
+            self.assertTrue(pct_diff < 1e-6)
+            self.assertTrue(pct_diff_off_by_one < 0.01)
+
     @unittest.skip("Takes 20+ min to finish in many configurations")
     @given(X=hu.tensor(shapes=hu.array_shapes(min_dims=4, max_dims=5,
                                               min_side=1, max_side=32),
