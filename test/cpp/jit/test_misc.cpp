@@ -755,10 +755,9 @@ void checkTracedInputs(const TracedTestInputs& inputs) {
 
 using namespace torch::autograd;
 
-void cleanUpScopeCallbacks() {
-  while (profiler::hasCallbacks()) {
-    profiler::popCallback();
-  }
+void cleanUpCallbacks() {
+  profiler::clearGlobalCallbacks();
+  profiler::clearThreadLocalCallbacks();
 }
 
 void checkScopeCallbacks() {
@@ -785,7 +784,8 @@ void checkScopeCallbacks() {
       /* needs_inputs */ false);
 
   bool bad_scope = false;
-  auto pushScopedCallback = [&](profiler::RecordScope scope, size_t& cnt) {
+  auto pushScopedCallback = [&](
+      profiler::RecordScope scope, size_t& cnt, profiler::CallbackKind kind) {
     profiler::pushCallback(
         [&bad_scope, &cnt, scope](const profiler::RecordFunction& fn) {
           if (fn.scope() == scope) {
@@ -797,16 +797,25 @@ void checkScopeCallbacks() {
         },
         [](const profiler::RecordFunction&) {},
         /* needs_inputs */ false,
-        /* sampling_prob */ 1.0,
-        /* scopes */ {scope});
+        /* scopes */ {scope},
+        kind);
   };
 
   size_t fun_cnt = 0;
-  pushScopedCallback(profiler::RecordScope::FUNCTION, fun_cnt);
+  pushScopedCallback(
+      profiler::RecordScope::FUNCTION,
+      fun_cnt,
+      profiler::CallbackKind::PRIVATE_USE_1);
   size_t ts_fun_cnt = 0;
-  pushScopedCallback(profiler::RecordScope::TORCHSCRIPT_FUNCTION, ts_fun_cnt);
+  pushScopedCallback(
+      profiler::RecordScope::TORCHSCRIPT_FUNCTION,
+      ts_fun_cnt,
+      profiler::CallbackKind::PRIVATE_USE_2);
   size_t user_scope_cnt = 0;
-  pushScopedCallback(profiler::RecordScope::USER_SCOPE, user_scope_cnt);
+  pushScopedCallback(
+      profiler::RecordScope::USER_SCOPE,
+      user_scope_cnt,
+      profiler::CallbackKind::PRIVATE_USE_3);
 
   TORCH_CHECK(profiler::hasCallbacks());
 
@@ -877,7 +886,7 @@ void testRecordFunction() {
     jit_inputs = traced_inputs;
     traced_inputs.clear();
   }
-  autograd::profiler::popCallback();
+  autograd::profiler::removeCallback();
 
   TORCH_CHECK(ts_names.size() == 2);
   TORCH_CHECK(ts_names.find("forward") != ts_names.end());
@@ -885,11 +894,11 @@ void testRecordFunction() {
 
   checkTracedInputs(eager_inputs);
   checkTracedInputs(jit_inputs);
-  cleanUpScopeCallbacks();
+  cleanUpCallbacks();
 
   // test sampled callbacks
   int sampled_cb_ctr = 0;
-  autograd::profiler::pushCallback(
+  autograd::profiler::pushGlobalCallback(
       [&sampled_cb_ctr](const autograd::profiler::RecordFunction& fn) {
         if (std::string(fn.name().str()) == "test") {
           ++sampled_cb_ctr;
@@ -898,10 +907,11 @@ void testRecordFunction() {
       },
       [](const autograd::profiler::RecordFunction&) {},
       /* needs_inputs */ false,
-      /* sampling_prob */ 0.5);
+      /* sampling_prob */ 0.5,
+      /* scopes */ {});
 
   int non_sampled_cb_ctr = 0;
-  autograd::profiler::pushCallback(
+  autograd::profiler::pushGlobalCallback(
       [&non_sampled_cb_ctr](const autograd::profiler::RecordFunction& fn) {
         if (std::string(fn.name().str()) == "test") {
           ++non_sampled_cb_ctr;
@@ -909,7 +919,9 @@ void testRecordFunction() {
         return true;
       },
       [](const autograd::profiler::RecordFunction&) {},
-      /* needs_inputs */ false);
+      /* needs_inputs */ false,
+      /* sampling_prob */ 1.0,
+      /* scopes */ {});
 
   auto run_test_function = []() {
     auto t = torch::randn({1, 2, 3}, at::kCPU);
@@ -936,11 +948,11 @@ void testRecordFunction() {
   TORCH_CHECK(non_sampled_cb_ctr == 3000);
   TORCH_CHECK(sampled_cb_ctr == 1000);
   autograd::profiler::TEST_unsetGlobalSamplingProbability();
-  cleanUpScopeCallbacks();
+  cleanUpCallbacks();
 
   // test the scope of the callbacks
   checkScopeCallbacks();
-  cleanUpScopeCallbacks();
+  cleanUpCallbacks();
 
   // check record function guard
   std::vector<std::string> fn_names;
@@ -970,7 +982,7 @@ void testRecordFunction() {
   }
   TORCH_CHECK(fn_names.size() == 1);
   TORCH_CHECK(fn_names[0] == "B");
-  cleanUpScopeCallbacks();
+  cleanUpCallbacks();
 }
 
 class TestThreadLocalDebugInfo : public at::DebugInfoBase {
@@ -1040,7 +1052,7 @@ void testThreadLocalDebugInfo() {
     auto t2 = t.pow(2);
     t2.backward(torch::ones_like(t2, at::MemoryFormat::Preserve));
   }
-  autograd::profiler::popCallback();
+  autograd::profiler::removeCallback();
   TORCH_CHECK(done);
 
   // check nested debug info
@@ -1049,13 +1061,6 @@ void testThreadLocalDebugInfo() {
   {
     at::DebugInfoGuard guard(at::DebugInfoKind::TEST_INFO, debug_info);
     {
-      bool throws_ = false;
-      try {
-        at::DebugInfoGuard guard(at::DebugInfoKind::TEST_INFO, debug_info);
-      } catch (const std::exception&) {
-        throws_ = true;
-      }
-      TORCH_CHECK(throws_);
       checkDebugInfo(at::DebugInfoKind::TEST_INFO, 42);
       {
         auto debug_info = std::make_shared<TestThreadLocalDebugInfo>();
