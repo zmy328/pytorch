@@ -52,7 +52,6 @@ endif()
 # Note: the folders that are being commented out have not been properly
 # addressed yet.
 
-# For pthreadpool_new_if_impl. TODO: Remove when threadpools are unitied.
 if(NOT MSVC)
   if(NOT TARGET fxdiv)
     set(FXDIV_BUILD_TESTS OFF CACHE BOOL "")
@@ -60,10 +59,6 @@ if(NOT MSVC)
     add_subdirectory(
       "${FXDIV_SOURCE_DIR}"
       "${CMAKE_BINARY_DIR}/FXdiv")
-  endif()
-  if(NOT (INTERN_BUILD_MOBILE AND NOT BUILD_CAFFE2_MOBILE))
-    set_source_files_properties(
-        utils/threadpool/pthreadpool_new_if_impl.c PROPERTIES COMPILE_FLAGS -fno-openmp)
   endif()
 endif()
 

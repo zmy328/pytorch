@@ -11,6 +11,7 @@
 #include "caffe2/operators/leaky_relu_op.h"
 #include "caffe2/utils/cpuid.h"
 #include "caffe2/utils/math.h"
+#include "caffe2/utils/threadpool/pthreadpool.h"
 #include "nnpack.h"
 
 C10_DEFINE_int(
@@ -69,9 +70,9 @@ nnp_convolution_transform_strategy get_nnp_convolution_transform_strategy(
 // Thread Pool
 ////////////////////////////////////////////////////////////////////////////////
 
-static pthreadpool_t nnpack_threadpool_ = nullptr;
+static c2_pthreadpool_t nnpack_threadpool_ = nullptr;
 
-pthreadpool_t nnpack_threadpool() {
+c2_pthreadpool_t nnpack_threadpool() {
   if (nnpack_threadpool_ == nullptr) {
     enum nnp_status nnpack_status = nnp_initialize();
     CAFFE_ENFORCE(
@@ -85,7 +86,7 @@ pthreadpool_t nnpack_threadpool() {
                  "Caffe2 is not built with MKL. Skipping.";
 #endif
     }
-    nnpack_threadpool_ = pthreadpool_create(num_threads);
+    nnpack_threadpool_ = c2_pthreadpool_create(num_threads);
   }
   return nnpack_threadpool_;
 }

@@ -9,6 +9,7 @@
 #include "caffe2/operators/conv_op_shared.h"
 #include "caffe2/operators/conv_pool_op_base.h"
 #include "caffe2/operators/quantized/int8_utils.h"
+#include "caffe2/utils/threadpool/pthreadpool.h"
 
 namespace caffe2 {
 
@@ -60,8 +61,8 @@ class Int8ConvOp final : public ConvPoolOpBase<CPUContext> {
     runWithSharedBuffer<CPUContext>(ws_, [&](Tensor* buffer) {
       initQNNPACK();
 
-      pthreadpool_t threadpool =
-          reinterpret_cast<pthreadpool_t>(ws_->GetThreadPool());
+      c2_pthreadpool_t threadpool =
+          reinterpret_cast<c2_pthreadpool_t>(ws_->GetThreadPool());
 
       if (this->qnnpackObject_ == nullptr) {
         CAFFE_ENFORCE(

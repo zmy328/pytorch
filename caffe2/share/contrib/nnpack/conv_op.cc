@@ -11,6 +11,7 @@
 #include "caffe2/operators/conv_pool_op_base.h"
 
 #include "caffe2/utils/math.h"
+#include "caffe2/utils/threadpool/pthreadpool.h"
 #include "nnpack.h"
 
 C10_DEFINE_bool(caffe2_profile_nnpack, false, "");
@@ -195,7 +196,7 @@ bool NNPACKConvOp::RunOnDeviceWithOrderNCHW() {
   const nnp_size output_subsample = {.width = static_cast<size_t>(stride_w()),
                                      .height = static_cast<size_t>(stride_h())};
   initNNPACK();
-  pthreadpool_t pool = reinterpret_cast<pthreadpool_t>(ws_->GetThreadPool());
+  c2_pthreadpool_t pool = reinterpret_cast<c2_pthreadpool_t>(ws_->GetThreadPool());
 
   runWithSharedBuffer<CPUContext>(ws_, [&](Tensor* buffer) {
     if (transformStrategy_ == nnp_convolution_transform_strategy_precompute) {
