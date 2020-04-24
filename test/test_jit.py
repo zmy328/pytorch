@@ -5428,6 +5428,7 @@ a")
         loaded = torch.jit.load(buffer)
         # should work
         copy.deepcopy(loaded)
+        copy.copy(loaded)
 
     def test_mul(self):
         def func(a, b):
