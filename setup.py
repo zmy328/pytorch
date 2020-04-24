@@ -799,6 +799,7 @@ if __name__ == '__main__':
                 'include/ATen/core/op_registration/*.h',
                 'include/c10/core/impl/*.h',
                 'include/c10/util/*.h',
+                'include/c10/util/fmt/*.h',
                 'include/c10/cuda/*.h',
                 'include/c10/cuda/impl/*.h',
                 'include/c10/hip/*.h',
